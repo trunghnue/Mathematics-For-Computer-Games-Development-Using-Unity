@@ -8,11 +8,16 @@ public class CreateBoard : MonoBehaviour
 {
     public GameObject[] tilePrefabs;
     public GameObject housePrefab;
+    public GameObject treePrefab;
     public Text score;
+    GameObject[] tiles;
     long dirtBB = 0;
+    long playerBB = 0;
+    long treeBB = 0;
     // Start is called before the first frame update
     void Start()
     {
+        tiles = new GameObject[64];
         for (int r = 0; r < tilePrefabs.Length; r++)
         {
             for (int c = 0; c < tilePrefabs.Length; c++)
@@ -21,14 +26,31 @@ public class CreateBoard : MonoBehaviour
                 Vector3 pos = new(c, 0, r);
                 GameObject tile = Instantiate(tilePrefabs[randomTile], pos, Quaternion.identity);
                 tile.name = tile.tag + "_" + r + " " + c;
+                tiles[r * 8 + c] = tile;
                 if (tile.CompareTag("Dirt"))
                 {
                     dirtBB = SetCellState(dirtBB, r, c);
-                    PrintBB("Dirt", dirtBB);
                 }
             }
         }
+        PrintBB("Dirt", dirtBB);
         Debug.Log("Dirt cells = " + CellCount(dirtBB));
+        InvokeRepeating(nameof(PlantTree), 1, 1);
+    }
+
+    void PlantTree()
+    {
+        int rr = UnityEngine.Random.Range(0, 8);
+        int rc = UnityEngine.Random.Range(0, 8);
+        Debug.Log("PlantTree: " + rr + " " + rc);
+
+        if (GetCellState(dirtBB & ~playerBB, rr, rc))
+        {
+            GameObject tree = Instantiate(treePrefab);
+            tree.transform.parent = tiles[rr * 8 + rc].transform;
+            tree.transform.localPosition = Vector3.zero;
+            treeBB = SetCellState(treeBB, rr, rc);
+        }
     }
 
     void PrintBB(string name, long BB)
@@ -36,10 +58,16 @@ public class CreateBoard : MonoBehaviour
         Debug.Log(name + ": " + Convert.ToString(BB, 2).PadLeft(64, '0'));
     }
 
-    long SetCellState(long bitboad, int row, int col)
+    long SetCellState(long bitboard, int row, int col)
     {
         long newBit = 1L << (row * 8 + col);
-        return (bitboad |= newBit);
+        return (bitboard |= newBit);
+    }
+
+    bool GetCellState(long bitboard, int row, int col)
+    {
+        long mask = 1L << (row * 8 + col);
+        return ((bitboard & mask) != 0);
     }
 
     int CellCount(long bitboard)
@@ -57,6 +85,22 @@ public class CreateBoard : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        if (Input.GetMouseButtonDown(0))
+        {
+            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out RaycastHit hit))
+            {
+                int r = (int)hit.collider.gameObject.transform.position.z;
+                int c = (int)hit.collider.gameObject.transform.position.x;
+                if (GetCellState(dirtBB & ~treeBB, r, c))
+                {
+                    GameObject house = Instantiate(housePrefab);
+                    house.transform.parent = hit.collider.gameObject.transform;
+                    house.transform.localPosition = Vector3.zero;
+                    playerBB = SetCellState(playerBB, r, c);
+                }
 
+            }
+        }
     }
 }
